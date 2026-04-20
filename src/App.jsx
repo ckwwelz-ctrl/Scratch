@@ -1305,7 +1305,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function holeFromCourse(courseHole) {
+function _holeFromCourse(courseHole) {
   return { ...emptyHole(), par: courseHole.par, yards: courseHole.yards, hdcp: courseHole.hdcp ?? "" };
 }
 
@@ -1352,7 +1352,7 @@ const cellBase = {
   display: "flex", alignItems: "center", justifyContent: "center",
   fontSize: 12, fontWeight: 600,
 };
-const inputCell = {
+const _inputCell = {
   ...cellBase,
   background: "rgba(0,0,0,.25)",
   borderRadius: 4,
@@ -1404,7 +1404,7 @@ function Score({ savedRounds, onSaveRound, onUpdateRound, onDeleteRound, courses
       return saved ? JSON.parse(saved) : [];
     } catch (e) { return []; }
   });
-  const [scanning, setScanning] = useState(false);
+  const [_scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState("idle");
   const [scanImg, setScanImg]   = useState(null);
   const [scanData, setScanData] = useState(null);
@@ -1487,8 +1487,8 @@ function Score({ savedRounds, onSaveRound, onUpdateRound, onDeleteRound, courses
   }
 
   const allStats   = calcStats(round.holes);
-  const frontStats = calcStats(round.holes.slice(0, 9));
-  const backStats  = calcStats(round.holes.slice(9));
+  const _frontStats = calcStats(round.holes.slice(0, 9));
+  const _backStats  = calcStats(round.holes.slice(9));
 
   const ROWS = [
     { key: "yards",      label: "Yards",   type: "input",    inputWidth: 44 },
@@ -3882,7 +3882,7 @@ function ActionPlan({ coach, plan, setPlan, savedRounds, swingInsights, onGoalsC
   const [answers, setAnswers]     = useState({});
   const [qIndex, setQIndex]       = useState(0);
   const [additionalInfo, setAdditionalInfo] = useState("");
-  const [generating, setGenerating] = useState(false);
+  const [_generating, setGenerating] = useState(false);
   const [genError, setGenError]   = useState("");
   const [proposedGoals, setProposedGoals] = useState([]);
   const [selectedGoals, setSelectedGoals] = useState([]);
@@ -5098,7 +5098,7 @@ const TOUR_STEPS = [
 
 function OnboardingTour({ coach, onFinish }) {
   const [step, setStep] = useState(0);
-  const [showMenu, setShowMenu] = useState(false);
+  const [_showMenu, _setShowMenu] = useState(false);
   const current = TOUR_STEPS[step];
   const isLast  = step === TOUR_STEPS.length - 1;
 
@@ -5541,7 +5541,7 @@ export default function App() {
   const [profile,         setProfile,         profileLoaded]  = usePersistedState(KEYS.profile,         null);
   const [inBag,           setInBag,           inBagLoaded]    = usePersistedState(KEYS.inBag,           ["driver","3w","5h","4i","5i","6i","7i","8i","9i","pw","gw","sw"]);
   const [rangeSessions,   setRangeSessions,   rangeLoaded]    = usePersistedState(KEYS.rangeSessions,   []);
-  const [onboarded,       setOnboarded,       onboardedLoaded] = usePersistedState(KEYS.onboarded,      false);
+  const [_onboarded,       setOnboarded,       onboardedLoaded] = usePersistedState(KEYS.onboarded,      false);
 
   const allLoaded = coachLoaded && roundsLoaded && coursesLoaded && planLoaded && insightsLoaded && historyLoaded && audioLoaded && profileLoaded && inBagLoaded && rangeLoaded && onboardedLoaded;
 
