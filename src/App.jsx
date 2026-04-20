@@ -389,7 +389,10 @@ async function askClaude({ system, messages, max_tokens = 1500 }) {
       messages,
     }),
   });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(`API error: ${response.status} — ${JSON.stringify(errData)}`);
+  }
   const data = await response.json();
   const text = data.content?.filter(b => b.type === "text").map(b => b.text).join("") || "";
   if (!text) throw new Error("Empty response");
