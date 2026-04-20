@@ -378,32 +378,17 @@ function toBase64(file) {
   });
 }
 
-async function askClaude({ system, messages, max_tokens = 1500 }) {
-  const response = await fetch("/api/claude", {
+async function askClaude({ system, messages }) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-opus-4-6",
-      max_tokens,
-      system,
-      messages,
-    }),
+    headers: { "Content-Type": "application/json", "anthropic-dangerous-direct-browser-calls": "true" },
+    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1024, system, messages }),
   });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const text = data.content
-    ?.filter(b => b.type === "text")
-    .map(b => b.text)
-    .join("") || "";
-
-  if (!text) throw new Error("Empty response");
-  return text;
+  const raw = await res.text();
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  const data = JSON.parse(raw);
+  return data.content?.filter(b => b.type === "text").map(b => b.text).join("") || "";
 }
-
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile, onProfileClick }) {
@@ -5507,31 +5492,20 @@ const KEYS = {
 
 // Hook: load once from storage, sync writes back
 function usePersistedState(key, defaultVal) {
-  const [value, setValue] = useState(defaultVal);
-  const [loaded, setLoaded] = useState(false);
-
-  // Load on mount
-  useState(() => {
-    (async () => {
-      try {
-        const result = await window.storage.get(key);
-        if (result && result.value !== undefined) {
-          setValue(JSON.parse(result.value));
-        }
-      } catch (e) {
-        // Key not found or parse error — use default
-      } finally {
-        setLoaded(true);
-      }
-    })();
+  const [value, setValue] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored !== null ? JSON.parse(stored) : defaultVal;
+    } catch (e) {
+      return defaultVal;
+    }
   });
+  const [loaded, setLoaded] = useState(true);
 
-  // Setter that also writes to storage
   function setAndPersist(valOrFn) {
     setValue(prev => {
       const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn;
-      // Fire and forget — don't block UI
-      window.storage.set(key, JSON.stringify(next)).catch(() => {});
+      try { localStorage.setItem(key, JSON.stringify(next)); } catch (e) {}
       return next;
     });
   }
