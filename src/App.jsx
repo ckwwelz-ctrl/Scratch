@@ -3970,7 +3970,6 @@ ${roundsSummary}`;
       console.error("Goals generation error:", e);
       const msg = `Couldn't generate goals — ${e.message}. You can add goals manually below.`;
       setGenError(msg);
-      alert("Debug: " + e.message); // temporary debug alert
       setStep("pick");
       setProposedGoals([]);
     } finally {
@@ -4382,7 +4381,7 @@ function calcClubAverages(clubId, rangeSessions) {
 }
 
 // ── My Bag ────────────────────────────────────────────────────────────────────
-function MyBag({ inBag, setInBag, rangeSessions }) {
+function MyBag({ inBag, setInBag, rangeSessions, onboardingContinue }) {
   const [clubInfo, setClubInfo] = useState(null);
   const [sessionLimit, setSessionLimit] = useState("all"); // "all" | "10" | "5"
   const DEFAULT_BAG = ["driver","3w","5h","4i","5i","6i","7i","8i","9i","pw","gw","sw"];
@@ -4489,9 +4488,16 @@ function MyBag({ inBag, setInBag, rangeSessions }) {
         <div style={{ background: "rgba(200,168,75,.06)", border: "1px solid rgba(200,168,75,.15)", borderRadius: 12, padding: "16px 18px", textAlign: "center", marginTop: 8 }}>
           <div style={{ fontSize: 22, marginBottom: 8 }}>🎯</div>
           <div style={{ fontSize: 13, color: "rgba(245,240,232,.6)", lineHeight: 1.6 }}>
-            Club distances will be calculated automatically once you log a log practice session.
+            Club distances will be calculated automatically once you log a practice session.
           </div>
         </div>
+      )}
+
+      {/* Onboarding continue button */}
+      {onboardingContinue && (
+        <button className="btn-gold" onClick={onboardingContinue} style={{ marginTop: 24 }}>
+          Continue to Tour →
+        </button>
       )}
 
       {/* Club Info modal */}
@@ -5616,8 +5622,18 @@ export default function App() {
     drills:    <Drills       goSwing={goSwing} />,
     mental:    <Mental />,
     plan:      <ActionPlan   coach={coach} plan={plan} setPlan={setPlan} savedRounds={savedRounds} swingInsights={swingInsights}
-                  onGoalsComplete={() => { if (sessionStorage.getItem("scratch:pendingTour")) { sessionStorage.removeItem("scratch:pendingTour"); setShowTourPrompt(true); } }} />,
-    mybag:     <MyBag        inBag={inBag} setInBag={setInBag} rangeSessions={rangeSessions} />,
+                  onGoalsComplete={() => {
+                    if (sessionStorage.getItem("scratch:pendingTour")) {
+                      navigate("mybag");
+                      sessionStorage.setItem("scratch:pendingBag", "1");
+                    }
+                  }} />,
+    mybag:     <MyBag        inBag={inBag} setInBag={setInBag} rangeSessions={rangeSessions}
+                  onboardingContinue={sessionStorage.getItem("scratch:pendingBag") ? () => {
+                    sessionStorage.removeItem("scratch:pendingBag");
+                    sessionStorage.removeItem("scratch:pendingTour");
+                    setShowTourPrompt(true);
+                  } : null} />,
     range:     <RangeSession inBag={inBag} rangeSessions={rangeSessions} setRangeSessions={setRangeSessions} />,
     profile:   <Profile      profile={profile} setProfile={setProfile} coach={coach} setCoach={setCoach} savedRounds={savedRounds} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} navigate={navigate} onSaveNew={handleProfileSaveNew} />,
     history:   <History      history={history} clear={() => setHistory([])} />,
