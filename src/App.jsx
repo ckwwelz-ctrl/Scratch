@@ -378,16 +378,22 @@ function toBase64(file) {
   });
 }
 
-async function askClaude({ system, messages }) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+async function askClaude({ system, messages, max_tokens = 1500 }) {
+  const response = await fetch("/api/claude", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "anthropic-dangerous-direct-browser-calls": "true" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1024, system, messages }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens,
+      system,
+      messages,
+    }),
   });
-  const raw = await res.text();
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  const data = JSON.parse(raw);
-  return data.content?.filter(b => b.type === "text").map(b => b.text).join("") || "";
+  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  const data = await response.json();
+  const text = data.content?.filter(b => b.type === "text").map(b => b.text).join("") || "";
+  if (!text) throw new Error("Empty response");
+  return text;
 }
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
