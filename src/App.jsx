@@ -383,7 +383,7 @@ async function askClaude({ system, messages, max_tokens = 1500 }) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-6",
       max_tokens,
       system,
       messages,
