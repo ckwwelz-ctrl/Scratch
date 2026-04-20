@@ -3965,7 +3965,9 @@ ${roundsSummary}`;
       setStep("pick");
     } catch (e) {
       console.error("Goals generation error:", e);
-      setGenError(`Couldn't generate goals — ${e.message}. You can add goals manually below.`);
+      const msg = `Couldn't generate goals — ${e.message}. You can add goals manually below.`;
+      setGenError(msg);
+      alert("Debug: " + e.message); // temporary debug alert
       setStep("pick");
       setProposedGoals([]);
     } finally {
