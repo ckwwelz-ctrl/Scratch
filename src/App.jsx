@@ -3964,7 +3964,8 @@ ${roundsSummary}`;
       setProposedGoals(goals.map((g, i) => ({ ...g, id: `g_${Date.now()}_${i}` })));
       setStep("pick");
     } catch (e) {
-      setGenError("Couldn't generate goals — check your connection and try again. You can add goals manually below.");
+      console.error("Goals generation error:", e);
+      setGenError(`Couldn't generate goals — ${e.message}. You can add goals manually below.`);
       setStep("pick");
       setProposedGoals([]);
     } finally {
