@@ -4391,7 +4391,7 @@ function calcClubAverages(clubId, rangeSessions) {
 }
 
 // ── My Bag ────────────────────────────────────────────────────────────────────
-function MyBag({ inBag, setInBag, rangeSessions, onboardingContinue }) {
+function MyBag({ inBag, setInBag, rangeSessions, setRangeSessions, onboardingContinue }) {
   const [clubInfo, setClubInfo] = useState(null);
   const [sessionLimit, setSessionLimit] = useState("all"); // "all" | "10" | "5"
   const DEFAULT_BAG = ["driver","3w","5h","4i","5i","6i","7i","8i","9i","pw","gw","sw"];
@@ -4412,8 +4412,9 @@ function MyBag({ inBag, setInBag, rangeSessions, onboardingContinue }) {
           </p>
         </div>
         <button onClick={() => {
-          if (window.confirm("Reset your bag to defaults and clear all club data?")) {
+          if (window.confirm("Reset your bag to defaults and clear all club distance data?")) {
             setInBag(["driver","3w","5h","4i","5i","6i","7i","8i","9i","pw","gw","sw"]);
+            setRangeSessions(sessions => sessions.map(s => ({ ...s, shots: {} })));
           }
         }} style={{
           flexShrink: 0, background: "none", border: "1px solid rgba(255,255,255,.1)",
@@ -4491,6 +4492,19 @@ function MyBag({ inBag, setInBag, rangeSessions, onboardingContinue }) {
                             borderRadius: 6, padding: "5px 10px", cursor: "pointer",
                             fontSize: 11, color: "rgba(245,240,232,.6)", fontFamily: "'DM Sans',sans-serif",
                           }}>Club Info</button>
+                          <button onClick={() => {
+                            if (window.confirm(`Clear all distance data for ${club.label}?`)) {
+                              setRangeSessions(sessions => sessions.map(s => {
+                                const shots = { ...s.shots };
+                                delete shots[club.id];
+                                return { ...s, shots };
+                              }));
+                            }
+                          }} style={{
+                            background: "none", border: "1px solid rgba(224,92,92,.25)",
+                            borderRadius: 6, padding: "5px 8px", cursor: "pointer",
+                            fontSize: 11, color: "rgba(224,92,92,.6)", fontFamily: "'DM Sans',sans-serif",
+                          }}>Reset</button>
                         </>
                       ) : (
                         <span style={{ fontSize: 11, color: "rgba(245,240,232,.25)", fontStyle: "italic" }}>
@@ -5650,7 +5664,7 @@ export default function App() {
                       sessionStorage.setItem("scratch:pendingBag", "1");
                     }
                   }} />,
-    mybag:     <MyBag        inBag={inBag} setInBag={setInBag} rangeSessions={rangeSessions}
+    mybag:     <MyBag        inBag={inBag} setInBag={setInBag} rangeSessions={rangeSessions} setRangeSessions={setRangeSessions}
                   onboardingContinue={sessionStorage.getItem("scratch:pendingBag") ? () => {
                     sessionStorage.removeItem("scratch:pendingBag");
                     sessionStorage.removeItem("scratch:pendingTour");
