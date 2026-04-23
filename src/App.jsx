@@ -469,8 +469,18 @@ function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile,
           </div>
         </div>
 
-        {/* Right: audio + hamburger */}
+        {/* Right: home + audio + hamburger */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {active !== "home" && (
+            <button
+              onClick={() => setActive("home")}
+              style={{
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: 8, padding: "5px 10px", cursor: "pointer",
+                fontSize: 15, lineHeight: 1, transition: "all .2s",
+              }}>🏠</button>
+          )}
           <button
             onClick={() => { setAudioEnabled(a => !a); if (audioEnabled) stopSpeech(); }}
             style={{
@@ -4394,11 +4404,23 @@ function MyBag({ inBag, setInBag, rangeSessions, onboardingContinue }) {
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", padding: "30px 20px" }}>
-      <div style={{ marginBottom: 16 }}>
-        <h2 style={{ color: "var(--gold)", fontSize: 26, marginBottom: 4 }}>My Bag</h2>
-        <p style={{ fontSize: 12, color: "rgba(245,240,232,.4)", lineHeight: 1.6 }}>
-          Tick the clubs you carry. Distances are calculated automatically from your practice sessions.
-        </p>
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h2 style={{ color: "var(--gold)", fontSize: 26, marginBottom: 4 }}>My Bag</h2>
+          <p style={{ fontSize: 12, color: "rgba(245,240,232,.4)", lineHeight: 1.6 }}>
+            Tick the clubs you carry. Distances are calculated automatically from your practice sessions.
+          </p>
+        </div>
+        <button onClick={() => {
+          if (window.confirm("Reset your bag to defaults and clear all club data?")) {
+            setInBag(["driver","3w","5h","4i","5i","6i","7i","8i","9i","pw","gw","sw"]);
+          }
+        }} style={{
+          flexShrink: 0, background: "none", border: "1px solid rgba(255,255,255,.1)",
+          borderRadius: 8, padding: "6px 12px", cursor: "pointer",
+          fontSize: 11, color: "rgba(245,240,232,.35)", fontFamily: "'DM Sans',sans-serif",
+          marginTop: 4,
+        }}>Reset Bag</button>
       </div>
 
       {/* Session limit filter */}
@@ -5648,7 +5670,20 @@ export default function App() {
         <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(200,168,75,.012) 40px,rgba(200,168,75,.012) 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(200,168,75,.012) 40px,rgba(200,168,75,.012) 41px)" }} />
       </div>
       <Nav active={page} setActive={navigate} coach={coach} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} profile={profile} onProfileClick={() => navigate("profile")} />
-      <main style={{ minHeight: "calc(100vh - 58px)" }}>{pages[page]}</main>
+      <main style={{ minHeight: "calc(100vh - 58px)" }}>
+        {page !== "home" && page !== "profile" && (
+          <div style={{ padding: "10px 20px 0" }}>
+            <button onClick={() => navigate("home")} style={{
+              background: "none", border: "none", color: "rgba(245,240,232,.45)",
+              cursor: "pointer", fontSize: 13, fontFamily: "'DM Sans',sans-serif",
+              display: "flex", alignItems: "center", gap: 6, padding: 0,
+            }}>
+              ← Home
+            </button>
+          </div>
+        )}
+        {pages[page]}
+      </main>
 
       {/* Tour prompt modal */}
       {showTourPrompt && !showTour && (
