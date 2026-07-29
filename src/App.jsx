@@ -1579,48 +1579,86 @@ function Score({ savedRounds, onSaveRound, onUpdateRound, onDeleteRound, courses
     return val || "—";
   }
 
+  // Pass 1: cheap, low-token call — just find the course name and which tee
+  // sets are visible. Multi-tee cards (5 tee boxes × 18 holes) blow past a
+  // small max_tokens budget if we ask for full hole data on every tee at
+  // once, which truncates the JSON and fails to parse. So we ask "what tees
+  // exist" first, let the user pick, then do a focused pass for just that one.
   async function scanScorecard(file) {
     setScanStep("loading");
     setScanError("");
     try {
       const b64 = await toBase64(file);
-      const system = `You are a golf scorecard reader. Extract scorecard data from the image and return ONLY valid JSON, nothing else. No markdown, no backticks, just raw JSON.
+      const system = `You are a golf scorecard reader. Look at the image and identify the course name and every tee set (tee box color/name) visible. Return ONLY valid JSON, nothing else. No markdown, no backticks, just raw JSON.
 
 Return this exact structure:
 {
-  "course": "course name",
+  "course": "course name or empty string",
   "tees": [
-    {
-      "tee": "tee color/name e.g. Blue, White, Red",
-      "rating": "course rating e.g. 71.2",
-      "slope": "slope rating e.g. 128",
-      "holes": [
-        { "hole": 1, "par": 4, "yards": 385, "hdcp": 7 },
-        ... all 18 holes
-      ]
-    }
+    { "tee": "tee color/name e.g. Blue, White, Red", "rating": "course rating e.g. 71.2 or empty string", "slope": "slope rating e.g. 128 or empty string" }
   ]
 }
 
-Extract ALL tee sets visible on the scorecard. If yardage or hdcp is not visible for a hole, use null. Always return 18 holes per tee set.`;
+List every distinct tee set visible on the card, left to right. Do NOT include hole-by-hole data in this response — just the tee names.`;
 
       const result = await askClaude({
         system,
+        max_tokens: 600,
         messages: [{ role: "user", content: [
           { type: "image", source: { type: "base64", media_type: file.type, data: b64 } },
-          { type: "text", text: "Extract all scorecard data from this image and return as JSON." },
+          { type: "text", text: "Identify the course name and all tee sets visible on this scorecard." },
         ]}],
       });
 
-      // Strip any accidental markdown
       const clean = result.replace(/```json|```/gi, "").trim();
       const data = JSON.parse(clean);
+      if (!data.tees || data.tees.length === 0) throw new Error("No tees found");
       setScanData(data);
-      setScanStep(data.tees?.length > 1 ? "pickTee" : "done");
-      if (data.tees?.length === 1) applyScan(data, data.tees[0]);
+      if (data.tees.length === 1) {
+        extractTeeDetail(file, data, data.tees[0]);
+      } else {
+        setScanStep("pickTee");
+      }
     } catch (e) {
       setScanError("Couldn't read the scorecard. Make sure the image is clear and well-lit, then try again.");
       setScanStep("preview");
+    }
+  }
+
+  // Pass 2: focused call for just the one tee the player picked — only ~18
+  // small objects to return, so it comfortably fits within max_tokens.
+  async function extractTeeDetail(file, data, tee) {
+    setScanStep("loadingDetail");
+    setScanError("");
+    try {
+      const b64 = await toBase64(file);
+      const system = `You are a golf scorecard reader. Extract the hole-by-hole data for ONLY the "${tee.tee}" tee set from this scorecard image. Return ONLY valid JSON, nothing else. No markdown, no backticks, just raw JSON.
+
+Return this exact structure:
+{
+  "holes": [
+    { "hole": 1, "par": 4, "yards": 385, "hdcp": 7 },
+    ... all 18 holes
+  ]
+}
+
+If yardage or handicap is not visible for a hole, use null. Always return all 18 holes, in order.`;
+
+      const result = await askClaude({
+        system,
+        max_tokens: 1500,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: file.type, data: b64 } },
+          { type: "text", text: `Extract all 18 holes of yardage, par, and handicap data for the ${tee.tee} tees from this scorecard image.` },
+        ]}],
+      });
+
+      const clean = result.replace(/```json|```/gi, "").trim();
+      const parsed = JSON.parse(clean);
+      applyScan(data, { ...tee, holes: parsed.holes });
+    } catch (e) {
+      setScanError("Couldn't read the hole data for that tee. Make sure the image is clear and well-lit, then try again.");
+      setScanStep("pickTee");
     }
   }
 
@@ -1899,9 +1937,10 @@ Extract ALL tee sets visible on the scorecard. If yardage or hdcp is not visible
             ✅ Found {scanData.tees?.length} tee set{scanData.tees?.length !== 1 ? "s" : ""}
           </div>
           <p style={{ fontSize: 13, color: "rgba(245,240,232,.5)", marginBottom: 16 }}>Select the tees you're playing:</p>
+          {scanError && <div style={{ fontSize: 13, color: "#f87171", marginBottom: 12 }}>⚠ {scanError}</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {scanData.tees?.map((t, i) => (
-              <button key={i} onClick={() => applyScan(scanData, t)} style={{
+              <button key={i} onClick={() => extractTeeDetail(scanInputRef.current._file, scanData, t)} style={{
                 background: "var(--card-bg)", border: "1px solid var(--border)",
                 borderRadius: 10, padding: "14px 16px", cursor: "pointer", textAlign: "left",
                 display: "flex", alignItems: "center", gap: 14, transition: "border-color .15s",
@@ -1922,6 +1961,11 @@ Extract ALL tee sets visible on the scorecard. If yardage or hdcp is not visible
             ))}
           </div>
         </>
+      )}
+      {scanStep === "loadingDetail" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(245,240,232,.6)", fontSize: 13 }}>
+          <div className="spinner" /> Reading hole-by-hole data…
+        </div>
       )}
     </div>
   );
