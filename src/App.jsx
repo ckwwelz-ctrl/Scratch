@@ -1416,6 +1416,7 @@ function Score({ savedRounds, onSaveRound, onUpdateRound, onDeleteRound, courses
   const [editingId, setEditingId] = useState(null);
   const [view, setView]         = useState("setup");
   const [showSaveCourse, setShowSaveCourse] = useState(false);
+  const [showEditCourseInfo, setShowEditCourseInfo] = useState(false);
   const [showManageRows, setShowManageRows] = useState(false);
   // Rows the player has chosen to hide — persisted in localStorage so it sticks
   const [hiddenRows, setHiddenRows] = useState(() => {
@@ -1684,6 +1685,7 @@ If yardage or handicap is not visible for a hole, use null. Always return all 18
     setScanData(null);
     setScanImg(null);
     setView("card");
+    if (!data.course || !data.course.trim()) setShowEditCourseInfo(true);
   }
 
   if (view === "courses") return (
@@ -2025,13 +2027,17 @@ If yardage or handicap is not visible for a hole, use null. Always return all 18
     <div style={{ padding: "24px 0 40px" }}>
       {/* Compact round header */}
       <div style={{ padding: "0 20px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
             {round.tee && <div style={{ width: 12, height: 12, borderRadius: "50%", background: teeColor(round.tee), border: "1px solid rgba(255,255,255,.2)", flexShrink: 0 }} />}
             <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cream)" }}>{round.course || "Unnamed Course"}</span>
             {round.roundType === "simulator" && (
               <span style={{ fontSize: 10, background: "rgba(74,144,217,.2)", color: "#4a90d9", border: "1px solid rgba(74,144,217,.35)", borderRadius: 10, padding: "2px 8px", fontWeight: 600 }}>SIM</span>
             )}
+            <button onClick={() => setShowEditCourseInfo(s => !s)} style={{
+              background: "none", border: "none", color: "var(--gold)", cursor: "pointer",
+              fontSize: 12, padding: "2px 4px", opacity: .8,
+            }} title="Edit course info">✎</button>
           </div>
           <div style={{ fontSize: 11, color: "rgba(245,240,232,.4)" }}>
             {formatDate(round.date)}{round.tee ? ` · ${round.tee}` : ""}{round.rating ? ` · Rating ${round.rating}` : ""}{round.slope ? ` · Slope ${round.slope}` : ""}
@@ -2042,6 +2048,34 @@ If yardage or handicap is not visible for a hole, use null. Always return all 18
           <button className="btn-outline" style={{ fontSize: 10, padding: "5px 10px" }} onClick={() => setView("rounds")}>Rounds</button>
         </div>
       </div>
+
+      {showEditCourseInfo && (
+        <div style={{ margin: "0 20px 14px", background: "rgba(0,0,0,.2)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px" }}>
+          <div style={{ marginBottom: 10 }}>
+            <label className="field-label">Course Name</label>
+            <input className="field-input" placeholder="e.g. Pebble Beach Golf Links" value={round.course}
+              onChange={e => setRound(r => ({ ...r, course: e.target.value }))} />
+          </div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label className="field-label">Tee</label>
+              <input className="field-input" placeholder="e.g. Blue" value={round.tee}
+                onChange={e => setRound(r => ({ ...r, tee: e.target.value }))} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="field-label">Rating</label>
+              <input className="field-input" placeholder="e.g. 72.4" value={round.rating}
+                onChange={e => setRound(r => ({ ...r, rating: e.target.value }))} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="field-label">Slope</label>
+              <input className="field-input" placeholder="e.g. 131" value={round.slope}
+                onChange={e => setRound(r => ({ ...r, slope: e.target.value }))} />
+            </div>
+          </div>
+          <button className="btn-outline" style={{ fontSize: 12, padding: "7px 16px" }} onClick={() => setShowEditCourseInfo(false)}>Done</button>
+        </div>
+      )}
 
       {/* Show/Hide Stats button + panel — sits just below the header */}
       <div style={{ padding: "0 20px 10px" }}>
