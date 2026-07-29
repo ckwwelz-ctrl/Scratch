@@ -5544,6 +5544,166 @@ const KEYS = {
   onboarded:      'scratch:onboarded',
 };
 
+// ── Supabase client ───────────────────────────────────────────────────────────
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || "";
+const SUPABASE_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY || "";
+
+function createSupabaseClient() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  return window._supabase || null;
+}
+
+async function supabaseRequest(path, options = {}) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  const token = localStorage.getItem("scratch:sb_token");
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${token || SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": "return=representation",
+      ...options.headers,
+    },
+    ...options,
+  });
+  if (!res.ok) return null;
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function supabaseAuth(action, email, password) {
+  const endpoint = action === "signup"
+    ? `${SUPABASE_URL}/auth/v1/signup`
+    : `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json();
+  if (data.access_token) {
+    localStorage.setItem("scratch:sb_token", data.access_token);
+    localStorage.setItem("scratch:sb_user", JSON.stringify({ id: data.user?.id, email: data.user?.email }));
+  }
+  return { ok: res.ok, data, error: data.error_description || data.msg || null };
+}
+
+async function supabaseSignOut() {
+  const token = localStorage.getItem("scratch:sb_token");
+  await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
+  });
+  localStorage.removeItem("scratch:sb_token");
+  localStorage.removeItem("scratch:sb_user");
+}
+
+async function loadUserData(userId) {
+  const res = await supabaseRequest(`user_data?user_id=eq.${userId}&select=*`);
+  if (res && res[0]) return res[0].data;
+  return null;
+}
+
+async function saveUserData(userId, data) {
+  await supabaseRequest(`user_data?user_id=eq.${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ data, updated_at: new Date().toISOString() }),
+  });
+}
+
+// ── Auth Screen ───────────────────────────────────────────────────────────────
+function AuthScreen({ onAuth, onSkip }) {
+  const [mode, setMode]       = useState("login"); // "login" | "signup"
+  const [email, setEmail]     = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function handleSubmit() {
+    if (!email.trim() || !password.trim()) { setError("Please enter your email and password."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      const { ok, error: err } = await supabaseAuth(mode, email, password);
+      if (ok) {
+        if (mode === "signup") {
+          setSuccess("Account created! Check your email to confirm, then sign in.");
+          setMode("login");
+        } else {
+          onAuth();
+        }
+      } else {
+        setError(err || "Something went wrong — please try again.");
+      }
+    } catch (e) {
+      setError("Couldn't connect — check your internet connection.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--green-deep)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ width: "100%", maxWidth: 400 }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 42, fontWeight: 900, color: "var(--gold)", lineHeight: 1 }}>Scratch</div>
+          <div style={{ fontSize: 13, color: "rgba(245,240,232,.4)", marginTop: 6 }}>AI Golf Coaching</div>
+        </div>
+
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 16, padding: "28px 24px" }}>
+          {/* Tab toggle */}
+          <div style={{ display: "flex", background: "rgba(0,0,0,.2)", borderRadius: 10, padding: 4, marginBottom: 24 }}>
+            {["login", "signup"].map(m => (
+              <button key={m} onClick={() => { setMode(m); setError(""); setSuccess(""); }} style={{
+                flex: 1, padding: "8px 0", borderRadius: 7, border: "none",
+                background: mode === m ? "rgba(200,168,75,.18)" : "transparent",
+                color: mode === m ? "var(--gold)" : "rgba(245,240,232,.4)",
+                fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer",
+              }}>{m === "login" ? "Sign In" : "Create Account"}</button>
+            ))}
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label className="field-label">Email</label>
+            <input className="field-input" type="email" placeholder="your@email.com"
+              value={email} onChange={e => setEmail(e.target.value)}
+              style={{ fontSize: "16px" }} />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label className="field-label">Password</label>
+            <input className="field-input" type="password" placeholder="Min. 6 characters"
+              value={password} onChange={e => setPassword(e.target.value)}
+              style={{ fontSize: "16px" }}
+              onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+          </div>
+
+          {error && <div style={{ fontSize: 12, color: "#f87171", marginBottom: 12, lineHeight: 1.5 }}>{error}</div>}
+          {success && <div style={{ fontSize: 12, color: "#4caf78", marginBottom: 12, lineHeight: 1.5 }}>{success}</div>}
+
+          <button className="btn-gold" onClick={handleSubmit} disabled={loading}>
+            {loading
+              ? <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><div className="spinner" />{mode === "login" ? "Signing in…" : "Creating account…"}</span>
+              : mode === "login" ? "Sign In →" : "Create Account →"}
+          </button>
+
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <button onClick={onSkip} style={{
+              background: "none", border: "none", color: "rgba(245,240,232,.3)",
+              fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+            }}>Continue without an account</button>
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: "rgba(245,240,232,.2)", lineHeight: 1.6 }}>
+          Create an account to sync your data across devices.<br />Your rounds, goals, and bag follow you everywhere.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Hook: load once from storage, sync writes back
 function usePersistedState(key, defaultVal) {
   const [value, setValue] = useState(() => {
@@ -5573,6 +5733,17 @@ export default function App() {
   const [firstLoad, setFirstLoad] = useState(true);
   const topRef = useRef(null);
 
+  // Auth state
+  const [authReady, setAuthReady] = useState(false);
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("scratch:sb_user") || "null"); } catch (e) { return null; }
+  });
+  const [showAuth, setShowAuth] = useState(false);
+  const syncTimer = useRef(null);
+
+  // Check if Supabase is configured
+  const hasSupabase = !!(SUPABASE_URL && SUPABASE_KEY);
+
   // Persisted state
   const [coach,         setCoach,         coachLoaded]    = usePersistedState(KEYS.coach,         COACHES[0]);
   const [savedRounds,   setSavedRounds,   roundsLoaded]   = usePersistedState(KEYS.savedRounds,   []);
@@ -5594,7 +5765,55 @@ export default function App() {
   // On first load, send new users to profile setup
   if (allLoaded && firstLoad) {
     setFirstLoad(false);
+    if (!profile?.name) {
+      if (hasSupabase && !user) setShowAuth(true);
+      else setPage("profile");
+    }
+  }
+
+  // Cloud sync — debounced save whenever key state changes
+  const appData = { coach, savedRounds, courses, plan, swingInsights, history, audioEnabled, profile, inBag, rangeSessions };
+  useEffect(() => {
+    if (!user || !hasSupabase) return;
+    clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      saveUserData(user.id, appData).catch(() => {});
+    }, 2000);
+  }, [coach, savedRounds, courses, plan, swingInsights, history, audioEnabled, profile, inBag, rangeSessions]);
+
+  // Load cloud data when user signs in
+  async function handleAuth() {
+    const storedUser = JSON.parse(localStorage.getItem("scratch:sb_user") || "null");
+    setUser(storedUser);
+    setShowAuth(false);
+    if (storedUser) {
+      try {
+        const cloudData = await loadUserData(storedUser.id);
+        if (cloudData) {
+          if (cloudData.coach)         setCoach(cloudData.coach);
+          if (cloudData.savedRounds)   setSavedRounds(cloudData.savedRounds);
+          if (cloudData.courses)       setCourses(cloudData.courses);
+          if (cloudData.plan)          setPlan(cloudData.plan);
+          if (cloudData.swingInsights) setSwingInsights(cloudData.swingInsights);
+          if (cloudData.history)       setHistory(cloudData.history);
+          if (cloudData.profile)       setProfile(cloudData.profile);
+          if (cloudData.inBag)         setInBag(cloudData.inBag);
+          if (cloudData.rangeSessions) setRangeSessions(cloudData.rangeSessions);
+        } else {
+          // First time signing in — save current local data to cloud
+          await saveUserData(storedUser.id, appData).catch(() => {});
+        }
+      } catch (e) {}
+    }
     if (!profile?.name) setPage("profile");
+  }
+
+  async function handleSignOut() {
+    if (window.confirm("Sign out? Your data is saved to your account.")) {
+      await supabaseSignOut();
+      setUser(null);
+      setShowAuth(true);
+    }
   }
 
   function addHistory(item) {
@@ -5676,6 +5895,10 @@ export default function App() {
     help:      <Help         coach={coach} />,
   };
 
+  if (showAuth && hasSupabase) {
+    return <AuthScreen onAuth={handleAuth} onSkip={() => { setShowAuth(false); if (!profile?.name) setPage("profile"); }} />;
+  }
+
   return (
     <>
       <GlobalStyle />
@@ -5684,6 +5907,26 @@ export default function App() {
         <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(200,168,75,.012) 40px,rgba(200,168,75,.012) 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(200,168,75,.012) 40px,rgba(200,168,75,.012) 41px)" }} />
       </div>
       <Nav active={page} setActive={navigate} coach={coach} audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled} profile={profile} onProfileClick={() => navigate("profile")} />
+      {/* Cloud sync status */}
+      {hasSupabase && user && (
+        <div style={{ position: "fixed", bottom: 8, left: 12, zIndex: 80, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontSize: 10, color: "rgba(245,240,232,.25)", fontFamily: "'DM Sans',sans-serif" }}>
+            ☁️ {user.email}
+          </div>
+          <button onClick={handleSignOut} style={{
+            background: "none", border: "none", color: "rgba(245,240,232,.2)",
+            fontSize: 10, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", padding: 0,
+          }}>Sign out</button>
+        </div>
+      )}
+      {hasSupabase && !user && (
+        <div style={{ position: "fixed", bottom: 8, left: 12, zIndex: 80 }}>
+          <button onClick={() => setShowAuth(true)} style={{
+            background: "none", border: "none", color: "rgba(245,240,232,.25)",
+            fontSize: 10, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", padding: 0,
+          }}>Sign in to sync data</button>
+        </div>
+      )}
       <main style={{ minHeight: "calc(100vh - 58px)" }}>
         {page !== "home" && page !== "profile" && (
           <div style={{ padding: "10px 20px 0" }}>
