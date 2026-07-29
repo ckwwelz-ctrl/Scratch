@@ -5548,70 +5548,61 @@ const KEYS = {
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY || "";
 
-function createSupabaseClient() {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  return window._supabase || null;
-}
+let _supabase = null;
 
-async function supabaseRequest(path, options = {}) {
+function getSupabase() {
+  if (_supabase) return _supabase;
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  const token = localStorage.getItem("scratch:sb_token");
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: {
-      "apikey": SUPABASE_KEY,
-      "Authorization": `Bearer ${token || SUPABASE_KEY}`,
-      "Content-Type": "application/json",
-      "Prefer": "return=representation",
-      ...options.headers,
-    },
-    ...options,
-  });
-  if (!res.ok) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  if (window.supabase) {
+    _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+  return _supabase;
 }
 
 async function supabaseAuth(action, email, password) {
-  const endpoint = action === "signup"
-    ? `${SUPABASE_URL}/auth/v1/signup`
-    : `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
-  console.log("Supabase URL:", SUPABASE_URL);
-  console.log("Attempting auth:", action, endpoint);
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await res.json();
-  console.log("Auth response:", res.status, JSON.stringify(data));
-  if (data.access_token) {
-    localStorage.setItem("scratch:sb_token", data.access_token);
-    localStorage.setItem("scratch:sb_user", JSON.stringify({ id: data.user?.id, email: data.user?.email }));
+  const sb = getSupabase();
+  if (!sb) return { ok: false, error: "Supabase not configured" };
+  
+  let result;
+  if (action === "signup") {
+    result = await sb.auth.signUp({ email, password });
+  } else {
+    result = await sb.auth.signInWithPassword({ email, password });
   }
-  return { ok: res.ok, data, error: data.error_description || data.msg || null };
+  
+  if (result.error) {
+    return { ok: false, error: result.error.message };
+  }
+  
+  const user = result.data?.user || result.data?.session?.user;
+  const token = result.data?.session?.access_token;
+  
+  if (token) {
+    localStorage.setItem("scratch:sb_token", token);
+    localStorage.setItem("scratch:sb_user", JSON.stringify({ id: user?.id, email: user?.email }));
+  }
+  
+  return { ok: true, data: result.data, error: null };
 }
 
 async function supabaseSignOut() {
-  const token = localStorage.getItem("scratch:sb_token");
-  await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
-    method: "POST",
-    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
-  });
+  const sb = getSupabase();
+  if (sb) await sb.auth.signOut();
   localStorage.removeItem("scratch:sb_token");
   localStorage.removeItem("scratch:sb_user");
 }
 
 async function loadUserData(userId) {
-  const res = await supabaseRequest(`user_data?user_id=eq.${userId}&select=*`);
-  if (res && res[0]) return res[0].data;
-  return null;
+  const sb = getSupabase();
+  if (!sb) return null;
+  const { data } = await sb.from("user_data").select("data").eq("user_id", userId).single();
+  return data?.data || null;
 }
 
 async function saveUserData(userId, data) {
-  await supabaseRequest(`user_data?user_id=eq.${userId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ data, updated_at: new Date().toISOString() }),
-  });
+  const sb = getSupabase();
+  if (!sb) return;
+  await sb.from("user_data").upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
 }
 
 // ── Auth Screen ───────────────────────────────────────────────────────────────
@@ -5641,7 +5632,7 @@ function AuthScreen({ onAuth, onSkip }) {
       }
     } catch (e) {
       console.error("Auth error:", e);
-      setError(`Connection error: ${e.message}. URL: ${SUPABASE_URL ? "set" : "missing"}, Key: ${SUPABASE_KEY ? "set" : "missing"}`);
+      setError(`Error: ${e.message}`);
     } finally {
       setLoading(false);
     }
