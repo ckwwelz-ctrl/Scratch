@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 const GlobalStyle = () => (
   <style>{`
@@ -5553,8 +5554,11 @@ let _supabase = null;
 function getSupabase() {
   if (_supabase) return _supabase;
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  if (window.supabase) {
-    _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  try {
+    _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch (e) {
+    console.error("Supabase init error:", e);
+    return null;
   }
   return _supabase;
 }
