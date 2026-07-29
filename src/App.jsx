@@ -5574,6 +5574,8 @@ async function supabaseAuth(action, email, password) {
     result = await sb.auth.signInWithPassword({ email, password });
   }
   
+  console.log("Auth result:", JSON.stringify(result));
+  
   if (result.error) {
     return { ok: false, error: result.error.message };
   }
@@ -5584,9 +5586,15 @@ async function supabaseAuth(action, email, password) {
   if (token) {
     localStorage.setItem("scratch:sb_token", token);
     localStorage.setItem("scratch:sb_user", JSON.stringify({ id: user?.id, email: user?.email }));
+    return { ok: true, data: result.data, error: null };
   }
   
-  return { ok: true, data: result.data, error: null };
+  // Signup without email confirmation — user exists but no session yet
+  if (action === "signup" && result.data?.user) {
+    return { ok: true, data: result.data, error: null };
+  }
+
+  return { ok: false, error: `Unexpected response: ${JSON.stringify(result.data)}` };
 }
 
 async function supabaseSignOut() {
@@ -5626,7 +5634,7 @@ function AuthScreen({ onAuth, onSkip }) {
       const { ok, error: err } = await supabaseAuth(mode, email, password);
       if (ok) {
         if (mode === "signup") {
-          setSuccess("Account created! Check your email to confirm, then sign in.");
+          setSuccess("Account created! You can now sign in.");
           setMode("login");
         } else {
           onAuth();
