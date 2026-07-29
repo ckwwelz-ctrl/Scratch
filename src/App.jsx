@@ -5575,12 +5575,15 @@ async function supabaseAuth(action, email, password) {
   const endpoint = action === "signup"
     ? `${SUPABASE_URL}/auth/v1/signup`
     : `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+  console.log("Supabase URL:", SUPABASE_URL);
+  console.log("Attempting auth:", action, endpoint);
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json();
+  console.log("Auth response:", res.status, JSON.stringify(data));
   if (data.access_token) {
     localStorage.setItem("scratch:sb_token", data.access_token);
     localStorage.setItem("scratch:sb_user", JSON.stringify({ id: data.user?.id, email: data.user?.email }));
@@ -5637,7 +5640,8 @@ function AuthScreen({ onAuth, onSkip }) {
         setError(err || "Something went wrong — please try again.");
       }
     } catch (e) {
-      setError("Couldn't connect — check your internet connection.");
+      console.error("Auth error:", e);
+      setError(`Connection error: ${e.message}. URL: ${SUPABASE_URL ? "set" : "missing"}, Key: ${SUPABASE_KEY ? "set" : "missing"}`);
     } finally {
       setLoading(false);
     }
