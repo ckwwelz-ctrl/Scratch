@@ -10,6 +10,7 @@ const GlobalStyle = () => (
       --green-light: #4caf78; --gold: #c8a84b; --gold-light: #e8c96a;
       --cream: #f5f0e8; --card-bg: rgba(255,255,255,0.07); --border: rgba(200,168,75,0.25);
     }
+    html, body { overscroll-behavior-y: none; }
     body { font-family: 'DM Sans', sans-serif; background: var(--green-deep); color: var(--cream); overflow-x: hidden; }
     h1,h2,h3,h4 { font-family: 'Playfair Display', serif; }
     ::-webkit-scrollbar { width: 4px; }
@@ -405,25 +406,38 @@ function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile,
   const [menuOpen, setMenuOpen] = useState(false);
   const menuPanelRef = useRef(null);
 
-  // Lock body scroll when menu is open.
+  // Lock scroll when menu is open.
   // Plain `overflow: hidden` on body doesn't reliably block touch/rubber-band
-  // scrolling on iOS Safari — drags inside the menu can still scroll the page
-  // behind it, which then snaps back to the top on release. Pinning the body
-  // with position:fixed (and restoring the scroll offset on close) handles
-  // the page-level bounce.
+  // scrolling on iOS/WebKit (this affects Chrome on iPhone too — it's the
+  // same WKWebView engine as Safari under the hood). Two extra layers here:
+  // (1) lock BOTH html and body, since the documentElement can still scroll
+  // even when only body is pinned, and (2) capture window.innerHeight once
+  // at open time rather than relying on a live `100vh` calc — the address
+  // bar showing/hiding mid-touch silently changes 100vh, and that resize is
+  // a known WebKit trigger for resetting an overflow:auto element's scroll
+  // position back to the top.
+  const [menuMaxHeight, setMenuMaxHeight] = useState(null);
   useEffect(() => {
     if (menuOpen) {
+      setMenuMaxHeight(window.innerHeight - 58);
       const scrollY = window.scrollY;
+      const htmlEl = document.documentElement;
+      htmlEl.style.overflow = "hidden";
+      htmlEl.style.height = "100%";
       document.body.style.position = "fixed";
       document.body.style.top = `-${scrollY}px`;
       document.body.style.left = "0";
       document.body.style.right = "0";
+      document.body.style.width = "100%";
       document.body.style.overflow = "hidden";
       return () => {
+        htmlEl.style.overflow = "";
+        htmlEl.style.height = "";
         document.body.style.position = "";
         document.body.style.top = "";
         document.body.style.left = "";
         document.body.style.right = "";
+        document.body.style.width = "";
         document.body.style.overflow = "";
         window.scrollTo(0, scrollY);
       };
@@ -567,7 +581,7 @@ function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile,
             borderBottomLeftRadius: 16,
             boxShadow: "-4px 4px 24px rgba(0,0,0,.5)",
             animation: "slideDown .15s ease-out",
-            maxHeight: "calc(100vh - 58px)",
+            maxHeight: menuMaxHeight != null ? `${menuMaxHeight}px` : "calc(100vh - 58px)",
             overflowY: "auto",
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
