@@ -5734,7 +5734,18 @@ async function loadUserData(userId) {
 async function saveUserData(userId, data) {
   const sb = getSupabase();
   if (!sb) return;
-  await sb.from("user_data").upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
+  // IMPORTANT: user_data's primary key is `id` (auto-generated), and user_id
+  // is a separate unique column. Without onConflict:'user_id', Supabase has
+  // no id to match against and treats every call as an INSERT — which then
+  // collides with the row the signup trigger already created for this user
+  // and fails silently. This was the cause of cloud sync never actually
+  // persisting anything.
+  const { error } = await sb.from("user_data")
+    .upsert({ user_id: userId, data, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) {
+    console.error("saveUserData failed:", error.message);
+    throw error;
+  }
 }
 
 // ── Auth Screen ───────────────────────────────────────────────────────────────
@@ -5899,12 +5910,16 @@ export default function App() {
   }
 
   // Cloud sync — debounced save whenever key state changes
+  const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "saving" | "error"
   const appData = { coach, savedRounds, courses, plan, swingInsights, history, audioEnabled, profile, inBag, rangeSessions };
   useEffect(() => {
     if (!user || !hasSupabase) return;
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(() => {
-      saveUserData(user.id, appData).catch(() => {});
+      setSyncStatus("saving");
+      saveUserData(user.id, appData)
+        .then(() => setSyncStatus("idle"))
+        .catch(() => setSyncStatus("error"));
     }, 2000);
   }, [coach, savedRounds, courses, plan, swingInsights, history, audioEnabled, profile, inBag, rangeSessions]);
 
@@ -6037,8 +6052,13 @@ export default function App() {
       {/* Cloud sync status */}
       {hasSupabase && user && (
         <div style={{ position: "fixed", bottom: 8, left: 12, zIndex: 80, display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ fontSize: 10, color: "rgba(245,240,232,.25)", fontFamily: "'DM Sans',sans-serif" }}>
-            ☁️ {user.email}
+          <div style={{
+            fontSize: 10, fontFamily: "'DM Sans',sans-serif",
+            color: syncStatus === "error" ? "#f87171" : "rgba(245,240,232,.25)",
+          }}>
+            {syncStatus === "error" ? "⚠️ Sync failed — data not backed up to cloud" :
+             syncStatus === "saving" ? "☁️ Syncing…" :
+             `☁️ ${user.email}`}
           </div>
           <button onClick={handleSignOut} style={{
             background: "none", border: "none", color: "rgba(245,240,232,.2)",
