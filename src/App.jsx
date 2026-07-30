@@ -403,13 +403,14 @@ async function askClaude({ system, messages, max_tokens = 1500 }) {
 // ── Nav ───────────────────────────────────────────────────────────────────────
 function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile, onProfileClick }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuPanelRef = useRef(null);
 
   // Lock body scroll when menu is open.
   // Plain `overflow: hidden` on body doesn't reliably block touch/rubber-band
   // scrolling on iOS Safari — drags inside the menu can still scroll the page
   // behind it, which then snaps back to the top on release. Pinning the body
-  // with position:fixed (and restoring the scroll offset on close) is the
-  // standard fix.
+  // with position:fixed (and restoring the scroll offset on close) handles
+  // the page-level bounce.
   useEffect(() => {
     if (menuOpen) {
       const scrollY = window.scrollY;
@@ -427,6 +428,24 @@ function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile,
         window.scrollTo(0, scrollY);
       };
     }
+  }, [menuOpen]);
+
+  // Belt-and-suspenders fix for the menu's own scroll resetting on touch
+  // release. React attaches onTouchMove as a *passive* listener by default,
+  // so calling preventDefault() from JSX never actually blocks anything —
+  // any touchmove handler on the panel was a no-op. A real, non-passive
+  // listener on the document is required to stop iOS from treating a drag
+  // as a page-level gesture (which snaps back) instead of scrolling the
+  // menu's internal list. Touches that start inside the panel are left
+  // alone so its own overflow-y:auto scrolling still works normally.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function blockOutsideScroll(e) {
+      if (menuPanelRef.current && menuPanelRef.current.contains(e.target)) return;
+      e.preventDefault();
+    }
+    document.addEventListener("touchmove", blockOutsideScroll, { passive: false });
+    return () => document.removeEventListener("touchmove", blockOutsideScroll);
   }, [menuOpen]);
 
   const menuItems = [
@@ -541,7 +560,7 @@ function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile,
             background: "rgba(0,0,0,.4)", backdropFilter: "blur(2px)",
           }} />
           {/* Menu panel */}
-          <div style={{
+          <div ref={menuPanelRef} style={{
             position: "fixed", top: 58, right: 0, zIndex: 99,
             width: 260, background: "rgba(13,40,24,.98)",
             borderLeft: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
@@ -551,8 +570,8 @@ function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile,
             maxHeight: "calc(100vh - 58px)",
             overflowY: "auto",
             WebkitOverflowScrolling: "touch",
+            overscrollBehavior: "contain",
           }}
-            onTouchMove={e => e.stopPropagation()}
           >
             {/* Coach badge inside menu */}
             <div style={{ padding: "12px 16px 10px", borderBottom: "1px solid rgba(255,255,255,.06)", display: "flex", alignItems: "center", gap: 10 }}>
