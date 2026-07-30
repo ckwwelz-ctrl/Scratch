@@ -404,14 +404,29 @@ async function askClaude({ system, messages, max_tokens = 1500 }) {
 function Nav({ active, setActive, coach, audioEnabled, setAudioEnabled, profile, onProfileClick }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Lock body scroll when menu is open
+  // Lock body scroll when menu is open.
+  // Plain `overflow: hidden` on body doesn't reliably block touch/rubber-band
+  // scrolling on iOS Safari — drags inside the menu can still scroll the page
+  // behind it, which then snaps back to the top on release. Pinning the body
+  // with position:fixed (and restoring the scroll offset on close) is the
+  // standard fix.
   useEffect(() => {
     if (menuOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
       document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
+      return () => {
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.left = "";
+        document.body.style.right = "";
+        document.body.style.overflow = "";
+        window.scrollTo(0, scrollY);
+      };
     }
-    return () => { document.body.style.overflow = ""; };
   }, [menuOpen]);
 
   const menuItems = [
@@ -2150,7 +2165,11 @@ If yardage or handicap is not visible for a hole, use null. Always return all 18
 
           {/* Hole number header row */}
           <div style={rowStyle(true)}>
-            <div style={{ width: labelW, minWidth: labelW, fontSize: 11, fontWeight: 700, color: "var(--gold)", paddingLeft: 6 }}>Hole</div>
+            <div style={{
+              width: labelW, minWidth: labelW, fontSize: 11, fontWeight: 700, color: "var(--gold)", paddingLeft: 6,
+              position: "sticky", left: 0, zIndex: 5, background: "#1c321c",
+              boxShadow: "2px 0 6px rgba(0,0,0,.35)",
+            }}>Hole</div>
             {round.holes.map((_, i) => (
               <div key={i} style={{ width: colW, minWidth: colW, ...cellBase, fontWeight: 800,
                 color: i < 9 ? "var(--gold-light)" : "rgba(200,168,75,.7)",
@@ -2167,12 +2186,16 @@ If yardage or handicap is not visible for a hole, use null. Always return all 18
           {visibleRows.map((row, ri) => (
             <div key={row.key} style={{ ...rowStyle(false), background: ri % 2 === 0 ? "rgba(0,0,0,.1)" : "transparent" }}>
               {/* Row label */}
-              <div style={{ width: labelW, minWidth: labelW, fontWeight: 700,
+              <div style={{
+                width: labelW, minWidth: labelW, fontWeight: 700,
                 color: "rgba(245,240,232,.5)", textTransform: "uppercase", letterSpacing: ".4px",
                 paddingLeft: 6, flexShrink: 0,
                 fontSize: row.smallLabel ? 8 : 10,
                 lineHeight: row.smallLabel ? 1.3 : "inherit",
                 whiteSpace: row.smallLabel ? "pre-line" : "nowrap",
+                position: "sticky", left: 0, zIndex: 5,
+                background: ri % 2 === 0 ? "#0c2416" : "#0d2818",
+                boxShadow: "2px 0 6px rgba(0,0,0,.35)",
               }}>
                 {row.label}
               </div>
